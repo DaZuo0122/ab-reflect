@@ -1,0 +1,2 @@
+# halt prefix
+A=(halt)B

@@ -1,0 +1,2 @@
+# once modifier
+A(once)=B
