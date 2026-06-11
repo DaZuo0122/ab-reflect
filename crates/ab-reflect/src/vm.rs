@@ -11,7 +11,6 @@ pub struct Vm {
     fuel: u64,
     tape_limit: usize,
     step_count: u64,
-    pub trace: bool,
 }
 
 impl Vm {
@@ -22,7 +21,6 @@ impl Vm {
             fuel,
             tape_limit,
             step_count: 0,
-            trace: false,
         }
     }
 
@@ -86,16 +84,14 @@ impl Vm {
     }
 
     fn trace_step(&self) {
-        if !self.trace {
-            return;
-        }
         let tape = self.tape.as_str();
         let display = tape
             .replace('\\', "\\\\")
             .replace('"', "\\\"")
             .replace('\n', "\\n")
             .replace('\t', "\\t");
-        eprintln!("[step:{} fuel:{}] \"{display}\"", self.step_count, self.fuel);
+        let msg = format!("[step:{} fuel:{}] \"{display}\"", self.step_count, self.fuel);
+        tracing::info!("{msg}");
     }
 
     fn check_tape_limit(&self) -> Result<()> {

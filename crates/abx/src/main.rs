@@ -71,9 +71,22 @@ fn run() -> Result<(), ab_reflect::error::Error> {
         tape.push_str(&format_arg(arg));
     }
 
+    // Set up tracing subscriber
+    let level = if cli.trace {
+        tracing::Level::INFO
+    } else {
+        tracing::Level::WARN
+    };
+    tracing_subscriber::fmt()
+        .with_max_level(level)
+        .with_writer(std::io::stderr)
+        .without_time()
+        .with_target(false)
+        .with_level(false)
+        .init();
+
     // Create and run VM
     let mut vm = Vm::new(tape, program.rules, fuel, tape_limit);
-    vm.trace = cli.trace;
     vm.run()?;
 
     // Final output

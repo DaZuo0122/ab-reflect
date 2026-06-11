@@ -5,4 +5,6 @@ edition = "2021"
 
 [dependencies]
 ab-reflect = { path = "../ab-reflect" }
-clap = { version = "4", features = ["derive"] }
+clap = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
