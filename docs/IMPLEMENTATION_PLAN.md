@@ -76,7 +76,8 @@ pub struct Tape {
 ```
 
 - **Safe Injection Protocol**: static methods to escape CLI args and `\g` input.
-- **String matching**: standard `String::find` / `String::replace` (UTF-8 safe).
+- **String matching**: standard `String::find` / `String::replace` on escaped source representation (UTF-8 safe).
+- **Output**: `Tape::decode()` decodes escapes for final output and primitive payloads.
 
 ### 3.3 Parser (`parser.rs`)
 
@@ -88,7 +89,7 @@ State machine, NOT `split('=')`:
    - Track `\` escaping state.
    - Preserve all whitespace on both sides.
 4. **Modifier extractor**: parse `(start)`, `(once)`, `(end)` from LHS; `(start)`, `(end)`, `(halt)` from RHS prefix.
-5. **Escape decoder**: apply Complete Escape Table (Section 2.4 of spec).
+5. **Escape validation**: scan for `\` sequences and reject unknown escapes per the Complete Escape Table (Section 2.4 of spec). LHS/RHS are stored escaped.
 6. **Block scanner**: for `\p{...}` and `\r{...}`, read until first unescaped `}`.
 7. **Pragma parser**: `@fuel=N`, `@tape-limit=N`.
 
@@ -294,7 +295,7 @@ Example: `ParseError { line: 7, message: "unknown escape sequence: \\x", column:
 
 1. **Scaffolding**: workspace `Cargo.toml`, crate skeletons.
 2. **Types + Error**: `Rule`, `RuleKey`, `Error`.
-3. **Tape + Safe Injection**: `Tape` type, escape/unescape utilities.
+3. **Tape + Safe Injection**: `Tape` type (stores escaped source-level text), escape/unescape utilities.
 4. **Parser**: line classification, rule splitting, escape decoding, pragma parsing.
 5. **VM core**: main loop, rule matching, fuel/tape checks.
 6. **Primitives**: `\p`, `\g`, `\r`, `\c`.
