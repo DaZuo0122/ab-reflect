@@ -137,11 +137,6 @@ fn parse_rule(line: &str, line_no: usize) -> Result<Rule> {
         has_once,
     };
 
-    // Re-order prefix flags if needed: duplicate detection already happened.
-    if has_start && has_once {
-        // Equivalent regardless of source order; keep as-is.
-    }
-
     Ok(Rule {
         key,
         rhs: rhs_text.to_string(),
