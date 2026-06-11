@@ -161,43 +161,27 @@ pub fn decode_escapes(input: &str) -> Result<String> {
 }
 
 // ---------------------------------------------------------------------------
-// Runtime Escape Encoder (used by \c primitive)
+// Runtime Escape Encoder (used by \c primitive after downgrade)
 // ---------------------------------------------------------------------------
 
-/// Encode a string for safe runtime serialization.
+/// Escape a string so it can be safely embedded in serialized rule text.
 ///
-/// 1. Downgrade active primitives to lazy: `\p`→`\P`, `\g`→`\G`, etc.
-/// 2. Escape literal `\`, `<`, `>`.
-pub fn encode_runtime_escapes(input: &str) -> String {
+/// Escapes: `\` → `\\`, `<` → `\<`, `>` → `\>`.
+///
+/// **Note:** Primitive downgrading (`\p` → `\P`, etc.) is performed by the
+/// `\c` handler using pattern-aware scanning *before* calling this function.
+/// This encoder is intentionally simple and only handles literal escaping,
+/// making it robust against arbitrary backslash runs.
+pub fn escape_for_runtime(input: &str) -> String {
     let mut out = String::with_capacity(input.len() * 2);
-    let mut chars = input.chars().peekable();
-
-    while let Some(ch) = chars.next() {
-        if ch != '\\' {
-            match ch {
-                '<' => out.push_str("\\<"),
-                '>' => out.push_str("\\>"),
-                _ => out.push(ch),
-            }
-            continue;
-        }
-
-        // ch == '\'
-        match chars.next() {
-            Some('p') => out.push_str("\\P"),
-            Some('g') => out.push_str("\\G"),
-            Some('r') => out.push_str("\\R"),
-            Some('c') => out.push_str("\\C"),
-            Some(other) => {
-                out.push('\\');
-                out.push(other);
-            }
-            None => {
-                out.push('\\');
-            }
+    for ch in input.chars() {
+        match ch {
+            '\\' => out.push_str("\\\\"),
+            '<' => out.push_str("\\<"),
+            '>' => out.push_str("\\>"),
+            _ => out.push(ch),
         }
     }
-
     out
 }
 
@@ -233,10 +217,24 @@ mod tests {
     }
 
     #[test]
-    fn encode_runtime_downgrades_and_escapes() {
-        let input = r"\p{hi}\g\r{A=B}\c < > \\";
-        let encoded = encode_runtime_escapes(input);
-        assert_eq!(encoded, r"\P{hi}\G\R{A=B}\C \< \> \\");
+    fn escape_for_runtime_escapes_special_chars() {
+        assert_eq!(escape_for_runtime(r"\<\>"), r"\\\<\\\>");
+    }
+
+    #[test]
+    fn escape_for_runtime_handles_backslash_runs() {
+        // Round-trip invariants for decoded tape content.
+        assert_eq!(escape_for_runtime(r"\"), r"\\");        // 1 → 2
+        assert_eq!(escape_for_runtime(r"\\"), r"\\\\");   // 2 → 4
+        assert_eq!(escape_for_runtime(r"\\\"), r"\\\\\\"); // 3 → 6
+    }
+
+    #[test]
+    fn escape_round_trips_with_decode() {
+        let original = r"\<foo\>\\bar";
+        let encoded = escape_for_runtime(original);
+        let decoded = decode_escapes(&encoded).unwrap();
+        assert_eq!(decoded, original);
     }
 
     #[test]
