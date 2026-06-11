@@ -112,7 +112,7 @@ fn parse_u64(value: &str, line_no: usize, name: &str) -> Result<u64> {
     })
 }
 
-fn parse_rule(line: &str, line_no: usize) -> Result<Rule> {
+pub fn parse_rule(line: &str, line_no: usize) -> Result<Rule> {
     let (has_start, has_once, rest) = extract_lhs_prefixes(line, line_no)?;
 
     let Some((lhs_raw, rhs_raw)) = split_unescaped_equal(rest) else {
