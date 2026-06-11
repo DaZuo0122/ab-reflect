@@ -131,7 +131,7 @@ loop:
 | `\p{payload}` | Print decoded payload + `\n` to stdout. Replace primitive with empty string in tape. |
 | `\g` | Read stdin to EOF, apply Safe Injection, replace `\g` with `<ESCAPED_INPUT>` or `<EOF>`. |
 | `\r{rule_string}` | Parse `rule_string` as a single rule (with `(del)` support). Upsert or delete from `rules`. Replace primitive with empty string. |
-| `\c` | Serialize current rules (with runtime escaping: active→lazy, `\`→`\\`, `<`→`\<`, `>`→`\>`). Wrap in `< >`. Replace primitive with result. |
+| `\c` | Serialize current rules. First downgrade active primitives (`\p{...}`→`\P{...}`, `\g`→`\G`, etc.) via pattern-aware scanning, then escape `\`, `<`, `>` with `tape::escape_for_runtime`. Wrap in `< >`. Replace primitive with result. |
 
 ### 3.6 Error (`error.rs`)
 
