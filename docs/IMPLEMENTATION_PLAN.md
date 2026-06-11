@@ -156,29 +156,42 @@ pub type Result<T> = std::result::Result<T, Error>;
 abx [OPTIONS] [FILE] [ARGS...]
 
 Arguments:
-  [FILE]   Source file (omit or use - for stdin)
+  [FILE]   Source file (omit or use - for stdin; `.abx` and `.abx.txt` supported)
   [ARGS]   Arguments appended to initial tape
 
 Options:
-  --fuel <N>         Max execution steps (overrides pragma)
-  --tape-limit <MB>  Max tape size in MB (overrides pragma)
-  --no-final         Suppress final tape output
+  --fuel <N>         Max execution steps (overrides pragma and config)
+  --tape-limit <MB>  Max tape size in MB (overrides pragma and config)
+  --no-final         Suppress final tape output (overrides config)
   --trace            Print every mutation to stderr
   -h, --help         Print help
+
+Config file (`abx.toml` in current directory):
+```toml
+fuel = 5000000
+tape-limit = 64
+no-final = false
+```
+
+Priority: CLI flags > pragma > config file > default.
 ```
 
 ### 4.2 Main Flow
 
 1. Parse CLI args with clap.
-2. Read source: file or stdin.
-3. Parse source with `ab_reflect::parser::parse()`.
-4. Extract pragmas (`@fuel`, `@tape-limit`). CLI flags override pragmas.
-5. Build initial tape from first rule's LHS text (no modifiers).
-6. Append CLI args via Safe Injection Protocol.
-7. Create `Vm` with tape, rules, fuel, tape-limit.
-8. Run VM loop. If `--trace`, print `[step:N fuel:F] "TAPE"` to stderr after each step.
-9. On `Ok(Halted)`: unless `--no-final`, print final tape to stdout.
-10. On `Err(e)`: print error to stderr, exit with non-zero code.
+2. Load `abx.toml` config from current directory (if present).
+3. Resolve source path: try exact path, then `.abx`, then `.abx.txt`.
+4. Read source: resolved file or stdin.
+5. Parse source with `ab_reflect::parser::parse()`.
+6. Resolve resource limits with priority: CLI > pragma > config > default.
+   Defaults: fuel=5_000_000, tape-limit=64MB, no-final=false.
+7. Build initial tape from first rule's LHS text (no modifiers).
+8. Append CLI args via Safe Injection Protocol.
+9. Set up tracing subscriber (stderr, level INFO if `--trace` else WARN).
+10. Create `Vm` with tape, rules, fuel, tape-limit.
+11. Run VM loop. Trace events emitted via `tracing::info!` after each mutation.
+12. On `Ok(Halted)`: unless `--no-final`, decode and print final tape to stdout.
+13. On `Err(e)`: print error to stderr, exit with non-zero code.
 
 ## 5. Testing Strategy
 
