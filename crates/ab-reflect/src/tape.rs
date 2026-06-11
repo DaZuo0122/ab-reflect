@@ -3,6 +3,11 @@
 use crate::error::{Error, Result};
 
 /// The mutable string state of the interpreter.
+///
+/// The tape stores **escaped source-level text**: the same representation
+/// used in rule source code. This preserves escape information needed by
+/// primitive block scanning (`\p{...}`, `\r{...}`). Use [`Tape::decode`]
+/// to obtain human-readable output.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Tape {
     content: String,
@@ -27,7 +32,13 @@ impl Tape {
         self.content.is_empty()
     }
 
+    /// Decode the tape for final output or primitive payload processing.
+    pub fn decode(&self) -> Result<String> {
+        decode_escapes(&self.content)
+    }
+
     /// Find the first occurrence of `needle` in the tape.
+    /// Both needle and tape are in escaped source representation.
     pub fn find(&self, needle: &str) -> Option<usize> {
         self.content.find(needle)
     }
