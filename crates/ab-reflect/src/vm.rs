@@ -11,6 +11,7 @@ pub struct Vm {
     fuel: u64,
     tape_limit: usize,
     step_count: u64,
+    pub trace: bool,
 }
 
 impl Vm {
@@ -21,6 +22,7 @@ impl Vm {
             fuel,
             tape_limit,
             step_count: 0,
+            trace: false,
         }
     }
 
@@ -40,6 +42,7 @@ impl Vm {
             if let Some((start, end, replacement)) = self.execute_leftmost_primitive()? {
                 self.tape.replace_range(start, end, &replacement);
                 self.check_tape_limit()?;
+                self.trace_step();
                 continue;
             }
 
@@ -67,17 +70,32 @@ impl Vm {
                     }
                     RhsPrefix::Halt => {
                         self.tape.replace_range(match_start, match_end, &rhs);
+                        self.trace_step();
                         return Ok(());
                     }
                 }
 
                 self.check_tape_limit()?;
+                self.trace_step();
                 continue;
             }
 
             // Phase 3: Normal halt
             return Ok(());
         }
+    }
+
+    fn trace_step(&self) {
+        if !self.trace {
+            return;
+        }
+        let tape = self.tape.as_str();
+        let display = tape
+            .replace('\\', "\\\\")
+            .replace('"', "\\\"")
+            .replace('\n', "\\n")
+            .replace('\t', "\\t");
+        eprintln!("[step:{} fuel:{}] \"{display}\"", self.step_count, self.fuel);
     }
 
     fn check_tape_limit(&self) -> Result<()> {
