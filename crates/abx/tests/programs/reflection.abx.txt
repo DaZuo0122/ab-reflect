@@ -1,0 +1,3 @@
+# Expected output: hello
+# reflection primitive
+A=\r{B=hello}B
