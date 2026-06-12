@@ -156,9 +156,16 @@ impl Vm {
             if boundaries[abs_start] && boundaries[end] {
                 return Some((abs_start, end));
             }
-            search_from = abs_start + 1;
+            search_from = Self::next_char_boundary(tape, abs_start);
         }
         None
+    }
+
+    fn next_char_boundary(text: &str, pos: usize) -> usize {
+        match text[pos..].chars().next() {
+            Some(ch) => pos + ch.len_utf8(),
+            None => text.len(),
+        }
     }
 
     /// Compute the set of byte positions in `tape` that are the start of an
@@ -438,5 +445,17 @@ mod tests {
         let mut vm = Vm::new(tape, rules, 100, 1024 * 1024);
         vm.run().unwrap();
         assert_eq!(vm.tape.as_str(), "<GO=hello>");
+    }
+
+    #[test]
+    fn vm_rule_miss_inside_utf8_capsule_does_not_panic() {
+        let tape = Tape::new("<é>");
+        let rules = vec![
+            Rule::new(RuleKey::new("<é>").with_once(), "<é>"),
+            Rule::new(RuleKey::new("é"), "REPLACED"),
+        ];
+        let mut vm = Vm::new(tape, rules, 100, 1024 * 1024);
+        vm.run().unwrap();
+        assert_eq!(vm.tape.as_str(), "<é>");
     }
 }
