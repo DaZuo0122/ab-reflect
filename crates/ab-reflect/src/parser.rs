@@ -203,16 +203,26 @@ fn extract_lhs_suffix(lhs_raw: &str, line_no: usize) -> Result<(bool, &str)> {
     }
 }
 
-fn extract_rhs_prefix(rhs_raw: &str, _line_no: usize) -> Result<(RhsPrefix, &str)> {
-    if let Some(tail) = rhs_raw.strip_prefix("(start)") {
-        Ok((RhsPrefix::Start, tail))
+fn extract_rhs_prefix(rhs_raw: &str, line_no: usize) -> Result<(RhsPrefix, &str)> {
+    let (prefix, tail) = if let Some(tail) = rhs_raw.strip_prefix("(start)") {
+        (RhsPrefix::Start, tail)
     } else if let Some(tail) = rhs_raw.strip_prefix("(end)") {
-        Ok((RhsPrefix::End, tail))
+        (RhsPrefix::End, tail)
     } else if let Some(tail) = rhs_raw.strip_prefix("(halt)") {
-        Ok((RhsPrefix::Halt, tail))
+        (RhsPrefix::Halt, tail)
     } else {
-        Ok((RhsPrefix::Normal, rhs_raw))
+        return Ok((RhsPrefix::Normal, rhs_raw));
+    };
+
+    if tail.starts_with("(start)") || tail.starts_with("(end)") || tail.starts_with("(halt)") {
+        return Err(Error::Parse {
+            line: line_no,
+            message: "multiple RHS prefixes are not allowed".to_string(),
+            column: None,
+        });
     }
+
+    Ok((prefix, tail))
 }
 
 /// Split a string at the first unescaped '=' character.
@@ -310,14 +320,17 @@ mod tests {
 
     #[test]
     fn parse_rhs_prefixes_mutually_exclusive() {
-        // Multiple RHS prefixes would be parsed sequentially; the second is kept as text.
-        // The spec says they are mutually exclusive, but the syntax itself makes the first
-        // prefix consume the token. We intentionally do not error here because `(start)(end)`
-        // as text after a prefix is valid data.
-        let program = parse("A=(start)(end)B").unwrap();
+        assert!(parse("A=(start)(end)B").is_err());
+        assert!(parse("A=(end)(halt)B").is_err());
+        assert!(parse("A=(halt)(start)B").is_err());
+    }
+
+    #[test]
+    fn parse_escaped_rhs_prefix_after_prefix_is_data() {
+        let program = parse(r"A=(start)\(end)B").unwrap();
         let rule = &program.rules[0];
         assert_eq!(rule.rhs_prefix, RhsPrefix::Start);
-        assert_eq!(rule.rhs, "(end)B");
+        assert_eq!(rule.rhs, r"\(end)B");
     }
 
     #[test]
