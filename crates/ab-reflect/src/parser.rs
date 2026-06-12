@@ -123,7 +123,7 @@ pub fn parse_rule(line: &str, line_no: usize) -> Result<Rule> {
         });
     };
 
-    let (has_end, lhs_text) = extract_lhs_suffix(lhs_raw);
+    let (has_end, lhs_text) = extract_lhs_suffix(lhs_raw, line_no)?;
     let (rhs_prefix, rhs_text) = extract_rhs_prefix(rhs_raw, line_no)?;
 
     validate_escapes(lhs_text, line_no)?;
@@ -188,11 +188,18 @@ fn extract_lhs_prefixes(line: &str, line_no: usize) -> Result<(bool, bool, &str)
     Ok((has_start, has_once, rest))
 }
 
-fn extract_lhs_suffix(lhs_raw: &str) -> (bool, &str) {
+fn extract_lhs_suffix(lhs_raw: &str, line_no: usize) -> Result<(bool, &str)> {
     if let Some(lhs) = lhs_raw.strip_suffix("(end)") {
-        (true, lhs)
+        if lhs.ends_with("(end)") {
+            return Err(Error::Parse {
+                line: line_no,
+                message: "duplicate (end) suffix".to_string(),
+                column: None,
+            });
+        }
+        Ok((true, lhs))
     } else {
-        (false, lhs_raw)
+        Ok((false, lhs_raw))
     }
 }
 
@@ -331,6 +338,11 @@ mod tests {
     #[test]
     fn parse_duplicate_prefix_errors() {
         assert!(parse("(once)(once)A=B").is_err());
+    }
+
+    #[test]
+    fn parse_duplicate_end_suffix_errors() {
+        assert!(parse("A(end)(end)=B").is_err());
     }
 
     #[test]
