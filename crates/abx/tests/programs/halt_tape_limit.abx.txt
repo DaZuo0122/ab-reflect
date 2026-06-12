@@ -1,0 +1,4 @@
+# Expected output:
+# @tape-limit=0
+# Regression: halt replacements still mutate the tape and must honor tape limits.
+A=(halt)BBBB

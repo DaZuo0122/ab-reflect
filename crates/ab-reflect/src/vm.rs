@@ -61,6 +61,7 @@ impl Vm {
                     }
                     RhsPrefix::Halt => {
                         self.tape.replace_range(match_start, match_end, &rhs);
+                        self.check_tape_limit()?;
                         self.trace_step();
                         return Ok(());
                     }
@@ -436,6 +437,14 @@ mod tests {
     fn vm_tape_overflow() {
         let tape = Tape::new("A");
         let rules = vec![Rule::new(RuleKey::new("A"), "BBBB")];
+        let mut vm = Vm::new(tape, rules, 100, 3);
+        assert!(matches!(vm.run(), Err(Error::TapeOverflow { .. })));
+    }
+
+    #[test]
+    fn vm_halt_replacement_checks_tape_limit() {
+        let tape = Tape::new("A");
+        let rules = vec![Rule::new(RuleKey::new("A"), "BBBB").with_rhs_prefix(RhsPrefix::Halt)];
         let mut vm = Vm::new(tape, rules, 100, 3);
         assert!(matches!(vm.run(), Err(Error::TapeOverflow { .. })));
     }
