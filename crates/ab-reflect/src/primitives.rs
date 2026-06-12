@@ -87,7 +87,9 @@ pub fn execute_c(rules: &[Rule]) -> Result<String> {
         if rule.key.has_once {
             line.push_str("(once)");
         }
-        line.push_str(&rule.key.lhs);
+        let downgraded_lhs = downgrade_primitives(&rule.key.lhs);
+        let escaped_lhs = escape_for_runtime(&downgraded_lhs);
+        line.push_str(&escaped_lhs);
         if rule.key.has_end {
             line.push_str("(end)");
         }
@@ -98,9 +100,9 @@ pub fn execute_c(rules: &[Rule]) -> Result<String> {
             RhsPrefix::Halt => line.push_str("(halt)"),
             RhsPrefix::Normal => {}
         }
-        let downgraded = downgrade_primitives(&rule.rhs);
-        let escaped = escape_for_runtime(&downgraded);
-        line.push_str(&escaped);
+        let downgraded_rhs = downgrade_primitives(&rule.rhs);
+        let escaped_rhs = escape_for_runtime(&downgraded_rhs);
+        line.push_str(&escaped_rhs);
         lines.push(line);
     }
 

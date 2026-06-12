@@ -63,10 +63,7 @@ fn run() -> Result<(), ab_reflect::error::Error> {
         }
         Some(path) => {
             let resolved = resolve_source_path(path).ok_or_else(|| {
-                io::Error::new(
-                    io::ErrorKind::NotFound,
-                    format!("source not found: {path}"),
-                )
+                io::Error::new(io::ErrorKind::NotFound, format!("source not found: {path}"))
             })?;
             fs::read_to_string(resolved)?
         }
@@ -141,12 +138,18 @@ fn resolve_source_path(path: &str) -> Option<String> {
     }
 
     let with_abx = format!("{path}.abx");
-    if fs::metadata(&with_abx).map(|m| m.is_file()).unwrap_or(false) {
+    if fs::metadata(&with_abx)
+        .map(|m| m.is_file())
+        .unwrap_or(false)
+    {
         return Some(with_abx);
     }
 
     let with_abx_txt = format!("{path}.abx.txt");
-    if fs::metadata(&with_abx_txt).map(|m| m.is_file()).unwrap_or(false) {
+    if fs::metadata(&with_abx_txt)
+        .map(|m| m.is_file())
+        .unwrap_or(false)
+    {
         return Some(with_abx_txt);
     }
 
