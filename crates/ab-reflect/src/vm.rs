@@ -239,54 +239,54 @@ impl Vm {
     // -----------------------------------------------------------------------
 
     fn execute_leftmost_primitive(&mut self) -> Result<Option<(usize, usize, String)>> {
-        let tape = self.tape.as_str();
-        let mut best: Option<(usize, usize, String)> = None;
-
-        if let Some(res) = self.scan_block_primitive(tape, "\\p{") {
-            best = Some(res);
+        #[derive(Clone, Copy, Debug)]
+        enum Kind {
+            P,
+            R,
+            G,
+            C,
         }
-        if let Some(res) = self.scan_block_primitive(tape, "\\r{") {
-            best = Self::leftmost(best, res);
+
+        let tape = self.tape.as_str();
+        let mut best: Option<(usize, usize, Kind)> = None;
+
+        if let Some((pos, end)) = self.scan_block_primitive(tape, "\\p{") {
+            best = Some((pos, end, Kind::P));
+        }
+        if let Some((pos, end)) = self.scan_block_primitive(tape, "\\r{") {
+            best = Self::leftmost_kind(best, (pos, end, Kind::R));
         }
         if let Some((pos, end)) = Self::scan_simple_primitive(tape, "\\g") {
-            let replacement = crate::primitives::execute_g()?;
-            best = Self::leftmost(best, (pos, end, replacement));
+            best = Self::leftmost_kind(best, (pos, end, Kind::G));
         }
         if let Some((pos, end)) = Self::scan_simple_primitive(tape, "\\c") {
-            let replacement = crate::primitives::execute_c(&self.rules)?;
-            best = Self::leftmost(best, (pos, end, replacement));
+            best = Self::leftmost_kind(best, (pos, end, Kind::C));
         }
 
-        if let Some((pos, end, _)) = best {
-            if tape[pos..].starts_with("\\p{") {
-                let replacement = crate::primitives::execute_p(&self.tape, pos, end)?;
-                return Ok(Some((pos, end, replacement)));
-            }
-            if tape[pos..].starts_with("\\r{") {
-                let replacement =
-                    crate::primitives::execute_r(&self.tape, pos, end, &mut self.rules)?;
-                return Ok(Some((pos, end, replacement)));
-            }
+        if let Some((pos, end, kind)) = best {
+            let replacement = match kind {
+                Kind::P => crate::primitives::execute_p(&self.tape, pos, end)?,
+                Kind::R => crate::primitives::execute_r(&self.tape, pos, end, &mut self.rules)?,
+                Kind::G => crate::primitives::execute_g()?,
+                Kind::C => crate::primitives::execute_c(&self.rules)?,
+            };
+            return Ok(Some((pos, end, replacement)));
         }
 
-        Ok(best)
+        Ok(None)
     }
 
-    fn leftmost(
-        a: Option<(usize, usize, String)>,
-        b: (usize, usize, String),
-    ) -> Option<(usize, usize, String)> {
+    fn leftmost_kind<T>(
+        a: Option<(usize, usize, T)>,
+        b: (usize, usize, T),
+    ) -> Option<(usize, usize, T)> {
         match a {
-            Some((pa, ..)) if pa <= b.0 => a,
+            Some((pa, .., _)) if pa <= b.0 => a,
             _ => Some(b),
         }
     }
 
-    fn scan_block_primitive(
-        &self,
-        tape: &str,
-        prefix: &str,
-    ) -> Option<(usize, usize, String)> {
+    fn scan_block_primitive(&self, tape: &str, prefix: &str) -> Option<(usize, usize)> {
         let mut search_from = 0;
         while let Some(pos) = tape[search_from..].find(prefix) {
             let abs_pos = search_from + pos;
@@ -297,7 +297,7 @@ impl Vm {
             let after_brace = abs_pos + prefix.len();
             if let Some(end) = crate::primitives::find_unescaped_brace(&tape[after_brace..]) {
                 let abs_end = after_brace + end + 1;
-                return Some((abs_pos, abs_end, String::new()));
+                return Some((abs_pos, abs_end));
             }
             search_from = abs_pos + 1;
         }
