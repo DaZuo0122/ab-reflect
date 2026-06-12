@@ -297,7 +297,7 @@ impl Vm {
         let mut search_from = 0;
         while let Some(pos) = tape[search_from..].find(prefix) {
             let abs_pos = search_from + pos;
-            if abs_pos > 0 && tape.as_bytes()[abs_pos - 1] == b'\\' {
+            if !Self::is_active_escape_start(tape, abs_pos) {
                 search_from = abs_pos + 1;
                 continue;
             }
@@ -315,13 +315,24 @@ impl Vm {
         let mut search_from = 0;
         while let Some(pos) = tape[search_from..].find(pattern) {
             let abs_pos = search_from + pos;
-            if abs_pos > 0 && tape.as_bytes()[abs_pos - 1] == b'\\' {
+            if !Self::is_active_escape_start(tape, abs_pos) {
                 search_from = abs_pos + 1;
                 continue;
             }
             return Some((abs_pos, abs_pos + pattern.len()));
         }
         None
+    }
+
+    fn is_active_escape_start(tape: &str, pos: usize) -> bool {
+        let bytes = tape.as_bytes();
+        let mut count = 0;
+        let mut idx = pos;
+        while idx > 0 && bytes[idx - 1] == b'\\' {
+            count += 1;
+            idx -= 1;
+        }
+        count % 2 == 0
     }
 }
 
@@ -457,5 +468,23 @@ mod tests {
         let mut vm = Vm::new(tape, rules, 100, 1024 * 1024);
         vm.run().unwrap();
         assert_eq!(vm.tape.as_str(), "<é>");
+    }
+
+    #[test]
+    fn vm_scans_primitive_after_escaped_backslash_pair() {
+        let vm = Vm::new(Tape::new(r"\\\p{hi}"), vec![], 100, 1024 * 1024);
+        assert_eq!(vm.scan_block_primitive(vm.tape.as_str(), r"\p{"), Some((2, 8)));
+    }
+
+    #[test]
+    fn vm_does_not_scan_primitive_after_single_escape_backslash() {
+        let vm = Vm::new(Tape::new(r"\\p{hi}"), vec![], 100, 1024 * 1024);
+        assert_eq!(vm.scan_block_primitive(vm.tape.as_str(), r"\p{"), None);
+    }
+
+    #[test]
+    fn vm_scans_simple_primitive_after_escaped_backslash_pair() {
+        assert_eq!(Vm::scan_simple_primitive(r"\\\c", r"\c"), Some((2, 4)));
+        assert_eq!(Vm::scan_simple_primitive(r"\\c", r"\c"), None);
     }
 }

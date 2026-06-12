@@ -1,0 +1,4 @@
+# Regression: an active primitive after an escaped literal backslash pair still
+# executes before Markov rules.
+\\\p{PING}=(halt)BAD
+\\=(halt)OK\n
