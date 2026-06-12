@@ -27,17 +27,9 @@ impl Vm {
     /// Run the VM until halt or error.
     pub fn run(&mut self) -> Result<()> {
         loop {
-            self.step_count += 1;
-
-            if self.fuel == 0 {
-                return Err(Error::FuelExceeded {
-                    steps: self.step_count,
-                });
-            }
-            self.fuel -= 1;
-
             // Phase 1: Primitive interception (highest priority)
             if let Some((start, end, replacement)) = self.execute_leftmost_primitive()? {
+                self.consume_fuel()?;
                 self.tape.replace_range(start, end, &replacement);
                 self.check_tape_limit()?;
                 self.trace_step();
@@ -46,6 +38,7 @@ impl Vm {
 
             // Phase 2: Markov rule application
             if let Some((rule_idx, match_start, match_end)) = self.find_first_rule_match() {
+                self.consume_fuel()?;
                 let rule = &mut self.rules[rule_idx];
                 let rhs = rule.rhs.clone();
                 let prefix = rule.rhs_prefix;
@@ -166,6 +159,18 @@ impl Vm {
             Some(ch) => pos + ch.len_utf8(),
             None => text.len(),
         }
+    }
+
+    fn consume_fuel(&mut self) -> Result<()> {
+        if self.fuel == 0 {
+            return Err(Error::FuelExceeded {
+                steps: self.step_count,
+            });
+        }
+
+        self.fuel -= 1;
+        self.step_count += 1;
+        Ok(())
     }
 
     /// Compute the set of byte positions in `tape` that are the start of an
@@ -407,6 +412,24 @@ mod tests {
         ];
         let mut vm = Vm::new(tape, rules, 5, 1024 * 1024);
         assert!(matches!(vm.run(), Err(Error::FuelExceeded { .. })));
+    }
+
+    #[test]
+    fn vm_normal_halt_does_not_consume_fuel() {
+        let tape = Tape::new("A");
+        let rules = vec![Rule::new(RuleKey::new("B"), "C")];
+        let mut vm = Vm::new(tape, rules, 0, 1024 * 1024);
+        vm.run().unwrap();
+        assert_eq!(vm.tape.as_str(), "A");
+    }
+
+    #[test]
+    fn vm_one_mutation_can_halt_with_one_fuel() {
+        let tape = Tape::new("A");
+        let rules = vec![Rule::new(RuleKey::new("A").with_once(), "B")];
+        let mut vm = Vm::new(tape, rules, 1, 1024 * 1024);
+        vm.run().unwrap();
+        assert_eq!(vm.tape.as_str(), "B");
     }
 
     #[test]

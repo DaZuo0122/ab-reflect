@@ -1,0 +1,4 @@
+# Expected output: B
+# @fuel=1
+# Regression: fuel is spent on mutations only, not on the final no-match halt scan.
+(once)A=B
