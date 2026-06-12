@@ -1,3 +1,4 @@
+# Expected output: <é>
 # Regression: after a failed rule match inside a UTF-8 <...> capsule, the VM
 # must continue from a char boundary instead of slicing into the middle of é.
 (once)<é>=<é>
