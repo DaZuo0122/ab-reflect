@@ -1,0 +1,11 @@
+# Expected output:
+# <GO=\R{(start)A(once)=X(end)}\R{(start)B(once)=Y}\R{C(end)=Z}\R{D=(halt)W}\R{(del)D=}\R{FIRE=}\R{\P=\p}\R{\C=\c}FIRE\P{stage1}\C
+# (start)A(once)=X(end)
+# (start)B(once)=Y
+# C(end)=Z
+# FIRE=
+# \P=\p
+# \C=\C>
+# Comprehensive stress test
+# Tests: (start), (end), (once), (halt), RHS prefixes, \r, \r(del), \p, \c
+GO=\r{(start)A(once)=X(end)}\r{(start)B(once)=Y}\r{C(end)=Z}\r{D=(halt)W}\r{(del)D=}\r{FIRE=}\r{\P=\p}\r{\C=\c}FIRE\P{stage1}\C

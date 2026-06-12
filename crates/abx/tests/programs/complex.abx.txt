@@ -1,0 +1,12 @@
+# Complex reflection + I/O test
+#
+# The GO rule reflects a FINISH rule with the (halt) prefix, then reads
+# stdin via \g before driving LOG/END prints and halting.
+#
+# Expected output (with input "hello world"):
+# [start]
+# [end]
+# <hello world>done
+GO=\r{FINISH=(halt)done}\gLOGENDFINISH
+LOG=\p{[start]}
+END=\p{[end]}
