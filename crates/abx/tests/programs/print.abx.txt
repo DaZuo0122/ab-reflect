@@ -1,2 +1,3 @@
+# Expected output: hello\n
 # print primitive
 \p{hello}=done

@@ -1,2 +1,3 @@
+# Expected output: BA
 # once modifier
 A(once)=B

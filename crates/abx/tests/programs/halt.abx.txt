@@ -1,2 +1,3 @@
+# Expected output: B
 # halt prefix
 A=(halt)B

@@ -1,2 +1,3 @@
+# Expected output:  <arg:hello>
 # args injection
  <arg:=

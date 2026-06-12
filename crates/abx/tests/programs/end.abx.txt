@@ -1,2 +1,3 @@
+# Expected output: Z
 # end modifier
 X(end)=Z
