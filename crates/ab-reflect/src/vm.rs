@@ -27,17 +27,9 @@ impl Vm {
     /// Run the VM until halt or error.
     pub fn run(&mut self) -> Result<()> {
         loop {
-            self.step_count += 1;
-
-            if self.fuel == 0 {
-                return Err(Error::FuelExceeded {
-                    steps: self.step_count,
-                });
-            }
-            self.fuel -= 1;
-
             // Phase 1: Primitive interception (highest priority)
             if let Some((start, end, replacement)) = self.execute_leftmost_primitive()? {
+                self.consume_fuel()?;
                 self.tape.replace_range(start, end, &replacement);
                 self.check_tape_limit()?;
                 self.trace_step();
@@ -46,6 +38,7 @@ impl Vm {
 
             // Phase 2: Markov rule application
             if let Some((rule_idx, match_start, match_end)) = self.find_first_rule_match() {
+                self.consume_fuel()?;
                 let rule = &mut self.rules[rule_idx];
                 let rhs = rule.rhs.clone();
                 let prefix = rule.rhs_prefix;
@@ -68,6 +61,7 @@ impl Vm {
                     }
                     RhsPrefix::Halt => {
                         self.tape.replace_range(match_start, match_end, &rhs);
+                        self.check_tape_limit()?;
                         self.trace_step();
                         return Ok(());
                     }
@@ -156,9 +150,28 @@ impl Vm {
             if boundaries[abs_start] && boundaries[end] {
                 return Some((abs_start, end));
             }
-            search_from = abs_start + 1;
+            search_from = Self::next_char_boundary(tape, abs_start);
         }
         None
+    }
+
+    fn next_char_boundary(text: &str, pos: usize) -> usize {
+        match text[pos..].chars().next() {
+            Some(ch) => pos + ch.len_utf8(),
+            None => text.len(),
+        }
+    }
+
+    fn consume_fuel(&mut self) -> Result<()> {
+        if self.fuel == 0 {
+            return Err(Error::FuelExceeded {
+                steps: self.step_count,
+            });
+        }
+
+        self.fuel -= 1;
+        self.step_count += 1;
+        Ok(())
     }
 
     /// Compute the set of byte positions in `tape` that are the start of an
@@ -290,7 +303,7 @@ impl Vm {
         let mut search_from = 0;
         while let Some(pos) = tape[search_from..].find(prefix) {
             let abs_pos = search_from + pos;
-            if abs_pos > 0 && tape.as_bytes()[abs_pos - 1] == b'\\' {
+            if !Self::is_active_escape_start(tape, abs_pos) {
                 search_from = abs_pos + 1;
                 continue;
             }
@@ -308,13 +321,24 @@ impl Vm {
         let mut search_from = 0;
         while let Some(pos) = tape[search_from..].find(pattern) {
             let abs_pos = search_from + pos;
-            if abs_pos > 0 && tape.as_bytes()[abs_pos - 1] == b'\\' {
+            if !Self::is_active_escape_start(tape, abs_pos) {
                 search_from = abs_pos + 1;
                 continue;
             }
             return Some((abs_pos, abs_pos + pattern.len()));
         }
         None
+    }
+
+    fn is_active_escape_start(tape: &str, pos: usize) -> bool {
+        let bytes = tape.as_bytes();
+        let mut count = 0;
+        let mut idx = pos;
+        while idx > 0 && bytes[idx - 1] == b'\\' {
+            count += 1;
+            idx -= 1;
+        }
+        count % 2 == 0
     }
 }
 
@@ -392,9 +416,35 @@ mod tests {
     }
 
     #[test]
+    fn vm_normal_halt_does_not_consume_fuel() {
+        let tape = Tape::new("A");
+        let rules = vec![Rule::new(RuleKey::new("B"), "C")];
+        let mut vm = Vm::new(tape, rules, 0, 1024 * 1024);
+        vm.run().unwrap();
+        assert_eq!(vm.tape.as_str(), "A");
+    }
+
+    #[test]
+    fn vm_one_mutation_can_halt_with_one_fuel() {
+        let tape = Tape::new("A");
+        let rules = vec![Rule::new(RuleKey::new("A").with_once(), "B")];
+        let mut vm = Vm::new(tape, rules, 1, 1024 * 1024);
+        vm.run().unwrap();
+        assert_eq!(vm.tape.as_str(), "B");
+    }
+
+    #[test]
     fn vm_tape_overflow() {
         let tape = Tape::new("A");
         let rules = vec![Rule::new(RuleKey::new("A"), "BBBB")];
+        let mut vm = Vm::new(tape, rules, 100, 3);
+        assert!(matches!(vm.run(), Err(Error::TapeOverflow { .. })));
+    }
+
+    #[test]
+    fn vm_halt_replacement_checks_tape_limit() {
+        let tape = Tape::new("A");
+        let rules = vec![Rule::new(RuleKey::new("A"), "BBBB").with_rhs_prefix(RhsPrefix::Halt)];
         let mut vm = Vm::new(tape, rules, 100, 3);
         assert!(matches!(vm.run(), Err(Error::TapeOverflow { .. })));
     }
@@ -438,5 +488,35 @@ mod tests {
         let mut vm = Vm::new(tape, rules, 100, 1024 * 1024);
         vm.run().unwrap();
         assert_eq!(vm.tape.as_str(), "<GO=hello>");
+    }
+
+    #[test]
+    fn vm_rule_miss_inside_utf8_capsule_does_not_panic() {
+        let tape = Tape::new("<é>");
+        let rules = vec![
+            Rule::new(RuleKey::new("<é>").with_once(), "<é>"),
+            Rule::new(RuleKey::new("é"), "REPLACED"),
+        ];
+        let mut vm = Vm::new(tape, rules, 100, 1024 * 1024);
+        vm.run().unwrap();
+        assert_eq!(vm.tape.as_str(), "<é>");
+    }
+
+    #[test]
+    fn vm_scans_primitive_after_escaped_backslash_pair() {
+        let vm = Vm::new(Tape::new(r"\\\p{hi}"), vec![], 100, 1024 * 1024);
+        assert_eq!(vm.scan_block_primitive(vm.tape.as_str(), r"\p{"), Some((2, 8)));
+    }
+
+    #[test]
+    fn vm_does_not_scan_primitive_after_single_escape_backslash() {
+        let vm = Vm::new(Tape::new(r"\\p{hi}"), vec![], 100, 1024 * 1024);
+        assert_eq!(vm.scan_block_primitive(vm.tape.as_str(), r"\p{"), None);
+    }
+
+    #[test]
+    fn vm_scans_simple_primitive_after_escaped_backslash_pair() {
+        assert_eq!(Vm::scan_simple_primitive(r"\\\c", r"\c"), Some((2, 4)));
+        assert_eq!(Vm::scan_simple_primitive(r"\\c", r"\c"), None);
     }
 }

@@ -48,7 +48,11 @@ pub fn execute_p(tape: &Tape, start: usize, end: usize) -> Result<String> {
 pub fn execute_g() -> Result<String> {
     let mut buffer = String::new();
     io::stdin().read_to_string(&mut buffer)?;
-    Ok(format_g_input(Some(&buffer)))
+    if buffer.is_empty() {
+        Ok(format_g_input(None))
+    } else {
+        Ok(format_g_input(Some(&buffer)))
+    }
 }
 
 /// `\r{rule_string}` — parse decoded payload as a rule and upsert/delete.
@@ -211,5 +215,10 @@ mod tests {
         assert_eq!(find_unescaped_brace("hi}"), Some(2));
         assert_eq!(find_unescaped_brace("hi\\}"), None);
         assert_eq!(find_unescaped_brace("hi\\}foo}"), Some(7));
+    }
+
+    #[test]
+    fn format_g_input_none_is_eof() {
+        assert_eq!(format_g_input(None), "<EOF>");
     }
 }

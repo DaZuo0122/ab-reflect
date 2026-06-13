@@ -2,6 +2,8 @@ use std::fs;
 use std::path::Path;
 use std::process::{Command, Stdio};
 
+const EXPECTED_OUTPUT_PREFIX: &str = "# Expected output:";
+
 #[test]
 fn run_all_integration_tests() {
     let bin = env!("CARGO_BIN_EXE_abx");
@@ -75,6 +77,15 @@ fn run_all_integration_tests() {
                 actual, expected,
                 "stdout mismatch for {stem}\n  expected: {expected:?}\n  actual:   {actual:?}"
             );
+        } else {
+            let source = fs::read_to_string(&path).unwrap();
+            if let Some(expected) = expected_output_from_source(&source) {
+                let actual = String::from_utf8_lossy(&output.stdout);
+                assert_eq!(
+                    actual, expected,
+                    "stdout mismatch for {stem}\n  expected: {expected:?}\n  actual:   {actual:?}"
+                );
+            }
         }
 
         // Check stderr
@@ -105,4 +116,37 @@ fn run_all_integration_tests() {
             "exit code mismatch for {stem}"
         );
     }
+}
+
+fn expected_output_from_source(source: &str) -> Option<String> {
+    source.lines().find_map(|line| {
+        line.strip_prefix(EXPECTED_OUTPUT_PREFIX)
+            .map(|text| decode_expected_output(text.strip_prefix(' ').unwrap_or(text)))
+    })
+}
+
+fn decode_expected_output(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut chars = text.chars();
+
+    while let Some(ch) = chars.next() {
+        if ch != '\\' {
+            out.push(ch);
+            continue;
+        }
+
+        match chars.next() {
+            Some('n') => out.push('\n'),
+            Some('r') => out.push('\r'),
+            Some('t') => out.push('\t'),
+            Some('\\') => out.push('\\'),
+            Some(other) => {
+                out.push('\\');
+                out.push(other);
+            }
+            None => out.push('\\'),
+        }
+    }
+
+    out
 }
